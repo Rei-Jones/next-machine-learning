@@ -1,0 +1,26 @@
+ ## ----------------------------------------------------------------------------
+   ## nexus | ATPC_Leptoquark.init.mac
+   ##
+   ## Initialization macro to simulate 0nuBB decays in an atmospheric TPC
+   ##
+   ## The NEXT Collaboration
+   ## ----------------------------------------------------------------------------
+  
+ 
+  /PhysicsList/RegisterPhysics G4EmStandardPhysics_option4
+  /PhysicsList/RegisterPhysics G4DecayPhysics
+  /PhysicsList/RegisterPhysics G4RadioactiveDecayPhysics
+  /PhysicsList/RegisterPhysics NexusPhysics
+  /PhysicsList/RegisterPhysics G4StepLimiterPhysics
+ 
+  /nexus/RegisterGeometry ATPC
+ 
+  /nexus/RegisterGenerator ElecPairGenerator
+ 
+  /nexus/RegisterPersistencyManager PersistencyManager
+ 
+  /nexus/RegisterRunAction DefaultRunAction
+  /nexus/RegisterEventAction DefaultEventAction
+  /nexus/RegisterTrackingAction DefaultTrackingAction
+ 
+  /nexus/RegisterMacro ATPC_Leptoquark.config.mac
