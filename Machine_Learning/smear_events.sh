@@ -13,7 +13,7 @@ source /home/rei/NEXT/next_env/bin/activate
 
 allowed_p=(1 5 10 15 25) # allowed prerssure values
 allowed_d=(0.1 0.05 0.25 5) # allowed diffusion values
-allowed_t=("leptoquark", "0nubb") # allowed event types
+allowed_t=("leptoquark" "0nubb") # allowed event types
 
 valid_p=false
 valid_d=false
@@ -56,12 +56,12 @@ while getopts ":p:d:t:h" opt; do
                 fi
             done
             if ! $valid_t; then
-                echo "Invalid event type. Allowed types: ${allowed_d[*]}"
+                echo "Invalid event type. Allowed types: ${allowed_t[*]}"
                 exit 1
             fi
             ;;
         h)
-            echo "Usage: $0 -p [${allowed_p[*]}] -d [${allowed_d[*]}]"
+            echo "Usage: $0 -p [${allowed_p[*]}] -d [${allowed_d[*]}] -t [${allowed_d[*]}]"
             exit 0
             ;;
         \?)
@@ -78,16 +78,20 @@ done
 # create destination directory
 DEST_DIR="/home/rei/NEXT/vertex_ML/diffused_data/${param_t}/${param_p}bar/${param_d}"
 
+echo "Destination directory: $DEST_DIR"
+
 if [ ! -d "$DEST_DIR" ]; then
     mkdir -p "$DEST_DIR"
 fi
 
 #original dir
 
-ORIGINAL_DIR="/home/rei/NEXT/vertex_ML/simulated_data/${param_t}/${param_p}bar/${param_d}"
+ORIGINAL_DIR="/home/rei/NEXT/vertex_ML/simulation_data/${param_t}/${param_p}bar/${param_d}"
+
+echo "Original directory: $ORIGINAL_DIR"
 
 # Loop over files
-for file in *.h5; do
+for file in $ORIGINAL_DIR/*.h5; do
     base=$(basename "$file" .h5)
 
     # Skip if already processed
