@@ -23,7 +23,7 @@ parser.add_argument("--pressure",
                     choices = [1, 5, 10, 15, 25], 
                     help = "Air pressure of detector in simulated events (bar)")
 
-parser.add_argument("--inuput_path", 
+parser.add_argument("--input_path", 
                     type = str, 
                     required = True, 
                     help = "Path to folder storing events")
@@ -53,7 +53,7 @@ input_path = args.input_path
 base_path = args.base_path
 diffusion = args.diffusion
 event_type = args.type
-file_identify = event_type + "_" + pressure + "_" + diffusion
+file_identify = f"{event_type}_{pressure}_{diffusion}"
 
 #-----GET VERTEX------
 def get_vertex(file_, eid):
