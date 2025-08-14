@@ -242,10 +242,11 @@ def get_training_data(h5file_path, base_path=base_path, completed_log=None):
         y_disp, z_disp = ax_yz.transData.transform((y_vertex, z_vertex))
         
         image_w, image_h = train_yz.canvas.get_width_height()
-        cy = y_disp / image_w
+        cy = y_disp / image_h
         cz = z_disp / image_h
         print(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
         print(f"img width: {image_w}\nimage height: {image_h}")
+        w = h = 0.1
         with open(label_file_yz, "w") as f:
             f.write(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
 
@@ -258,6 +259,7 @@ def get_training_data(h5file_path, base_path=base_path, completed_log=None):
         cz = z_disp / image_h
         print(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
         print(f"img width: {image_w}\nimage height: {image_h}")
+        w = h = 0.1
         with open(label_file_xz, "w") as f:
             f.write(f"0 {cx:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
 
