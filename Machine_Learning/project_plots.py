@@ -58,22 +58,30 @@ file_identify = f"{event_type}_{pressure}_{diffusion}"
 #-----GET VERTEX------
 def get_vertex(file_, eid):
     part = pd.read_hdf(file_, 'MC/particles')
+
+    x_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_x.iloc[0]
+    y_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_y.iloc[0]
+    z_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_z.iloc[0]
+
+    return x_vertex, y_vertex, z_vertex
+
+#-----GET Z-SHIFT-----
+def get_zshift(pressure):
     density = 5.987*pressure
     M = 1000/0.9
     det_size = 1000*np.cbrt((4 * M) / (np.pi * density))/2.0
 
-    x_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_x.iloc[0]
-    y_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_y.iloc[0]
-    z_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_z.iloc[0]+det_size
-
-    return x_vertex, y_vertex, z_vertex
+    return det_size
 
 ### ------ PLOTTING 3D EVENT HITS ------
 def PlotEvent3D(axis, file_, title, eid, part):
     fig = plt.figure(figsize=(5.12, 5.12), dpi=100)
 
+    z_shift = get_zshift(pressure)
+
     hits = pd.read_hdf(file_, 'MC/hits')
-    event_hits = hits[hits.event_id == eid]
+    event_hits = hits[hits.event_id == eid].copy()
+    event_hits["z"] = event_hits["z"]-z_shift
     part = pd.read_hdf(file_, 'MC/particles')
     part = part[(part.event_id == eid) & (part.primary == 1)]
     x_vertex, y_vertex, z_vertex = get_vertex(file_, eid)
@@ -227,13 +235,13 @@ def get_training_data(h5file_path, base_path=base_path, completed_log=None):
         x_disp, y_disp = ax_xy.transData.transform((x_vertex, y_vertex))  # convert to pixels
         
         image_w, image_h = train_xy.canvas.get_width_height()
-        cx = x_disp / image_w
-        cy = y_disp / image_h
+        cx1 = x_disp / image_w
+        cy1 = y_disp / image_h
         w = h = 0.01
-        print(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+        print(f"0 {cx1:.6f} {cy1:.6f} {w:.6f} {h:.6f}\n")
         print(f"img width: {image_w}\nimage height: {image_h}")
         with open(label_file_xy, "w") as f:
-            f.write(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+            f.write(f"0 {cx1:.6f} {cy1:.6f} {w:.6f} {h:.6f}\n")
 
         # YZ projection
         label_file_yz = os.path.join(label_path, f"event_{eid}_{file_identify}_yz.txt")
@@ -242,26 +250,26 @@ def get_training_data(h5file_path, base_path=base_path, completed_log=None):
         y_disp, z_disp = ax_yz.transData.transform((y_vertex, z_vertex))
         
         image_w, image_h = train_yz.canvas.get_width_height()
-        cy = y_disp / image_h
-        cz = z_disp / image_h
-        print(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
+        cy2 = y_disp / image_h
+        cz1 = z_disp / image_h
+        print(f"0 {cy2:.6f} {cz1:.6f} {w:.6f} {h:.6f}\n")
         print(f"img width: {image_w}\nimage height: {image_h}")
         w = h = 0.1
         with open(label_file_yz, "w") as f:
-            f.write(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
+            f.write(f"0 {cy2:.6f} {cz1:.6f} {w:.6f} {h:.6f}\n")
 
         # XZ projection
         label_file_xz = os.path.join(label_path, f"event_{eid}_{file_identify}_xz.txt")
         ax_xz = train_xz.gca()
         train_xz.canvas.draw()
         x_disp, z_disp = ax_xz.transData.transform((x_vertex, z_vertex))
-        cx = x_disp / image_w
-        cz = z_disp / image_h
-        print(f"0 {cy:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
+        cx2 = x_disp / image_w
+        cz2 = z_disp / image_h
+        print(f"0 {cy2:.6f} {cz2:.6f} {w:.6f} {h:.6f}\n")
         print(f"img width: {image_w}\nimage height: {image_h}")
         w = h = 0.1
         with open(label_file_xz, "w") as f:
-            f.write(f"0 {cx:.6f} {cz:.6f} {w:.6f} {h:.6f}\n")
+            f.write(f"0 {cx2:.6f} {cz2:.6f} {w:.6f} {h:.6f}\n")
 
         print(f"Completed event {eid}\n")
 
