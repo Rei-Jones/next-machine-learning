@@ -73,15 +73,26 @@ def get_zshift(pressure):
 
     return det_size
 
+z_shift = get_zshift(pressure)
+
+#-----GET TRAIN/TEST/VAL SPLIT-----
+def get_split():
+    r= random.random()
+    if r < 0.7:
+        return 'train'
+    elif r < 0.9:
+        return 'val'
+    else:
+        return 'test'
+
 ### ------ PLOTTING 3D EVENT HITS ------
-def PlotEvent3D(axis, file_, title, eid, part):
+def PlotEvent3D(axis, file_, title, eid, part, zshift):
     fig = plt.figure(figsize=(5.12, 5.12), dpi=100)
 
-    z_shift = get_zshift(pressure)
 
     hits = pd.read_hdf(file_, 'MC/hits')
     event_hits = hits[hits.event_id == eid].copy()
-    event_hits["z"] = event_hits["z"]-z_shift
+    event_hits["z"] = event_hits["z"]-zshift
     part = pd.read_hdf(file_, 'MC/particles')
     part = part[(part.event_id == eid) & (part.primary == 1)]
     x_vertex, y_vertex, z_vertex = get_vertex(file_, eid)
@@ -95,6 +106,8 @@ def PlotEvent3D(axis, file_, title, eid, part):
     # Scatter plot in 3D
     sc = ax.scatter(event_hits.x, event_hits.y, event_hits.z, 
                     c=event_hits.energy, cmap='Spectral', s=10, label="Reco hits")
+    
+    ver = ax.scatter(x_vertex, y_vertex, z_vertex, s=50, color="black")
 
     ax.set_xlabel("X [mm]", fontsize=15, color='black')
     ax.set_ylabel("Y [mm]", fontsize=15, color='black')
@@ -122,219 +135,123 @@ def PlotEvent3D(axis, file_, title, eid, part):
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False
 
-    plt.close(fig)
 
     return sc, x_vertex, y_vertex, z_vertex
 
-###------- GET PROJECTED GRAPHS --------
-def graph_train(original_plot):
-    points = original_plot._offsets3d
-    x= points[0]
-    y = points[1]
-    z = points[2]
+###------- GET DATASET FUNCTION --------
+
+split = get_split()
+
+def get_data(original_plot, vertex, eid, file_identify, base_path, split = split):
+
+    #initialize paths
+    path_img = os.path.join(base_path, "images", split)
+    path_label = os.path.join(base_path, "labels", split)
+    os.makedirs(path_img, exist_ok=True)
+    os.makedirs(path_label, exist_ok=True)
+
+    #get projection data
+    x_vertex, y_vertex, z_vertex = vertex
+    x = original_plot._offsets3d[0]
+    y = original_plot._offsets3d[1]
+    z = original_plot._offsets3d[2]
     c = original_plot.get_array()
 
-    #XY projection
-    fig1, ax1 = plt.subplots(figsize=(5.12, 5.12), dpi=100)
-    sc_xy = ax1.scatter(x, y, c=c, cmap='Spectral', s=5)
-    ax1.set_xlabel("X [mm]", fontsize=15, color='black')
-    ax1.set_ylabel("Y [mm]", fontsize=15, color='black')
-    ax1.set_title("XY Projection", fontsize=15, color='black')
-    cbar1 = fig1.colorbar(sc_xy, ax=ax1, shrink=0.5, aspect=10, pad=0.09)
-    cbar1.set_label("Energy", fontsize=12, color='black')
+    projections = [("xy", x, y, x_vertex, y_vertex),
+                   ("yz", y, z, y_vertex, z_vertex),
+                   ("xz", x, z, x_vertex, z_vertex)]
+    
+    w = h = 0.02 #bounding box size
 
-    # YZ projection
-    fig2, ax2 = plt.subplots(figsize=(5.12, 5.12), dpi=100)
-    sc_yz = ax2.scatter(y, z, c=c, cmap='Spectral', s=5)
-    ax2.set_xlabel("Y [mm]", fontsize=15, color='black')
-    ax2.set_ylabel("Z [mm]", fontsize=15, color='black')
-    ax2.set_title("YZ Projection", fontsize=15, color='black')
-    cbar2 = fig2.colorbar(sc_yz, ax=ax2, shrink=0.5, aspect=10, pad=0.09)
-    cbar2.set_label("Energy", fontsize=12, color='black')
+    for dim, X, Y, vx, vy in projections:
 
-    # XZ projection
-    fig3, ax3 = plt.subplots(figsize=(5.12, 5.12), dpi=100)
-    sc_xz = ax3.scatter(x, z, c=c, cmap='Spectral', s=5)
-    ax3.set_xlabel("X [mm]", fontsize=15, color='black')
-    ax3.set_ylabel("Z [mm]", fontsize=15, color='black')
-    ax3.set_title("XZ Projection", fontsize=15, color='black')
-    cbar3 = fig3.colorbar(sc_xz, ax=ax3, shrink=0.5, aspect=10, pad=0.09)
-    cbar3.set_label("Energy", fontsize=12, color='black')
+        #plot the event
+        fig, ax = plt.subplots(figsize=(5.12, 5.12), dpi=100)
+        ax.scatter(X, Y, c=c, cmap="Spectral", s=5)
 
-    plt.close(fig1)
-    plt.close(fig2)
-    plt.close(fig3)
-    return fig1, fig2, fig3
+        ax.axis("off") #don't show axis
 
-###------- SAVE FIGURES --------
+        # axis limits
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
 
-def get_split():
-    r= random.random()
-    if r < 0.7:
-        return 'train'
-    elif r < 0.9:
-        return 'val'
-    else:
-        return 'test'
+        #normalize for yolo (0-1)
+        cx = (vx - xlim[0]) / (xlim[1] - xlim[0]) # dist from left / total width
+        cy = 1 - ((vy - ylim[0]) / (ylim[1] - ylim[0])) # subtract from 1 since y=0 is at top in yolo
 
-def save_plot(eid, train_xy, train_yz, train_xz, base_path = base_path, split = None):
-    image_path = os.path.join(base_path, "images", split)
-    os.makedirs(image_path, exist_ok=True)
-    # Save the plots
-    train_xy.savefig(os.path.join(image_path, f'event_{eid}_{file_identify}_xy.png'))
-    train_yz.savefig(os.path.join(image_path, f'event_{eid}_{file_identify}_yz.png'))
-    train_xz.savefig(os.path.join(image_path, f'event_{eid}_{file_identify}_xz.png'))
-
-def get_training_data(h5file_path, base_path=base_path, completed_log=None):
-    hits = pd.read_hdf(h5file_path, 'MC/hits')
-    part = pd.read_hdf(h5file_path, 'MC/particles')
-    event_ids = hits['event_id'].unique()
-
-    # Read completed events from log file if exists
-    if completed_log and os.path.exists(completed_log):
-        with open(completed_log, 'r') as f:
-            completed_events_set = set(int(line.strip()) for line in f)
-    else:
-        completed_events_set = set()
-
-    total_events = len(event_ids)
-    already_completed = len(completed_events_set)
-
-    print(f"Total events in file: {total_events}")
-    print(f"Already completed events: {already_completed}")
-
-    new_completed_events = 0
-
-    for i, eid in enumerate(event_ids):
-        if eid in completed_events_set:
-            # Skip already processed
-            continue
-
-        print(f"Processing event {eid} ({new_completed_events + 1}/{total_events - already_completed})")
-        split = get_split()
-
-        result = PlotEvent3D(111, h5file_path, "", eid, part)
-
-        if result[0] is None:
-            print(f"Skipping event {eid} due to missing data.")
-            continue
-
-        sc, x_vertex, y_vertex, z_vertex = result
-
-        train_xy, train_yz, train_xz = graph_train(sc)
-
-        #LABELS
+        print(f"label: 0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+        #save label
+        with open(os.path.join(path_label, f"event_{eid}_{file_identify}_{dim}.txt"), "w") as f:
+            f.write(f"0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
         
-        # XY projection
-        label_path = os.path.join(base_path, "labels", split)
-        os.makedirs(label_path, exist_ok=True)
-        label_file_xy = os.path.join(label_path, f"event_{eid}_{file_identify}_xy.txt")
+        #save plot
+        fig.savefig(os.path.join(path_img, f"event_{eid}_{file_identify}_{dim}.png"), bbox_inches="tight", pad_inches=0)
 
-        ax_xy = train_xy.gca()
-        train_xy.canvas.draw()
-        x_disp, y_disp = ax_xy.transData.transform((x_vertex, y_vertex))  # convert to pixels
-        
-        image_w, image_h = train_xy.canvas.get_width_height()
-        cx1 = x_disp / image_w
-        cy1 = y_disp / image_h
-        w = h = 0.01
-        print(f"0 {cx1:.6f} {cy1:.6f} {w:.6f} {h:.6f}\n")
-        print(f"img width: {image_w}\nimage height: {image_h}")
-        with open(label_file_xy, "w") as f:
-            f.write(f"0 {cx1:.6f} {cy1:.6f} {w:.6f} {h:.6f}\n")
-
-        # YZ projection
-        label_file_yz = os.path.join(label_path, f"event_{eid}_{file_identify}_yz.txt")
-        ax_yz = train_yz.gca()
-        train_yz.canvas.draw()
-        y_disp, z_disp = ax_yz.transData.transform((y_vertex, z_vertex))
-        
-        image_w, image_h = train_yz.canvas.get_width_height()
-        cy2 = y_disp / image_h
-        cz1 = z_disp / image_h
-        print(f"0 {cy2:.6f} {cz1:.6f} {w:.6f} {h:.6f}\n")
-        print(f"img width: {image_w}\nimage height: {image_h}")
-        w = h = 0.1
-        with open(label_file_yz, "w") as f:
-            f.write(f"0 {cy2:.6f} {cz1:.6f} {w:.6f} {h:.6f}\n")
-
-        # XZ projection
-        label_file_xz = os.path.join(label_path, f"event_{eid}_{file_identify}_xz.txt")
-        ax_xz = train_xz.gca()
-        train_xz.canvas.draw()
-        x_disp, z_disp = ax_xz.transData.transform((x_vertex, z_vertex))
-        cx2 = x_disp / image_w
-        cz2 = z_disp / image_h
-        print(f"0 {cy2:.6f} {cz2:.6f} {w:.6f} {h:.6f}\n")
-        print(f"img width: {image_w}\nimage height: {image_h}")
-        w = h = 0.1
-        with open(label_file_xz, "w") as f:
-            f.write(f"0 {cx2:.6f} {cz2:.6f} {w:.6f} {h:.6f}\n")
-
-        print(f"Completed event {eid}\n")
-
-        save_plot(eid, train_xy, train_yz, train_xz, base_path=base_path, split=split)
-
-        # Log the completed event
-        if completed_log:
-            with open(completed_log, 'a') as f:
-                f.write(f"{eid}\n")
-
-        new_completed_events += 1
-
-        print(f"Completed event {eid} ({new_completed_events}/{total_events - already_completed})")
-
-    print(f"New events processed this run: {new_completed_events}")
-    print(f"Total events completed (including previous): {already_completed + new_completed_events}")
-
-    return new_completed_events
+        plt.close(fig)
 
 
-### -----CREATE DATASET-----
+#----- GET DATASET -----
 
-# Ensure completed_events folder exists
+#keep track of completed events and files
 completed_events_folder = os.path.join(base_path, "completed_events")
 os.makedirs(completed_events_folder, exist_ok=True)
 
-# Completed files log
 completed_files_log = os.path.join(base_path, "completed_files.txt")
 
-# Read completed files
 if os.path.exists(completed_files_log):
     with open(completed_files_log, "r") as f:
         completed_files_set = set(line.strip() for line in f)
 else:
     completed_files_set = set()
 
+#only get h5 files
 if os.path.isdir(input_path):
-    h5files = [os.path.join(input_path, f) for f in os.listdir(input_path) if f.endswith('.h5')]
+    h5_files = [os.path.join(input_path, f) for f in os.listdir(input_path) if f.endswith("h5")]
 else:
-    h5files = [input_path]
+    h5_files = [input_path]
 
-# Filter out files already processed
-h5files = [f for f in h5files if os.path.basename(f) not in completed_files_set]
+#filter out already processed files
+h5_files = [f for f in h5_files if os.path.basename(f) not in completed_files_set]
 
 completed_files = 0
 
-for h5file in h5files:
-    print(f"Processing file: {h5file}")
 
-    completed_events_file = os.path.join(completed_events_folder, os.path.basename(h5file) + ".txt")
+for file in h5_files:
+    completed_log = os.path.join(completed_events_folder, os.path.basename(file) + "_completed.txt")
 
-    new_completed = get_training_data(h5file, base_path, completed_log=completed_events_file)
+    hits_df = pd.read_hdf(file, "MC/hits")
+    part_df = pd.read_hdf(file, "MC/particles")
+    event_ids = hits_df["event_id"].unique()
 
-    print(f"Finished processing file: {h5file}")
-    print(f"Total files processed: {completed_files + 1}/{len(h5files)}")
-    print(f"New events processed: {new_completed}\n")
+    #keep track of completed events in file
+    if completed_log and os.path.exists(completed_log):
+        with open(completed_log, "r") as f:
+            completed_events_set = set(int(line.strip()) for line in f)
+    else:
+        completed_events_set = set()
+    
+    total_events = len(event_ids)
+    already_completed_events = len(completed_events_set)
 
-    if os.path.exists(completed_events_file):
-        os.remove(completed_events_file)
-        print(f"Deleted completed events file: {completed_events_file}")
+    print(f"{already_completed_events}/{total_events} events completed in file")
 
+    new_completed_events = 0
+
+    #loop through events
+    for i, eid in enumerate(event_ids):
+        print(f"Processing event {eid}...")
+        sc, x_vertex, y_vertex, z_vertex = PlotEvent3D(111, file, "", eid, part_df, z_shift)
+        get_data(sc, (x_vertex, y_vertex, z_vertex), eid, file_identify, base_path, split=split)
+        print(f"completed event {eid}")
+
+        if completed_log:
+            with open(completed_log, 'a') as f:
+                f.write(f"{eid}\n")
+
+        new_completed_events += 1
+    
+    print(f"completed file {file}\n{completed_files}/{len(h5_files)} completed")
     with open(completed_files_log, "a") as f:
-        f.write(os.path.basename(h5file) + "\n")
-
-    completed_files += 1
+        f.write(os.path.basename(file) + "\n")
 
 
-print(f"Completed processing {completed_files} files.")
