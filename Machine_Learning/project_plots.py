@@ -135,14 +135,23 @@ def PlotEvent3D(axis, file_, title, eid, part, zshift):
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False
 
+    # extract raw data arrays
+    x = event_hits.x.values
+    y = event_hits.y.values
+    z = event_hits.z.values
+    c = event_hits.energy.values
 
-    return sc, x_vertex, y_vertex, z_vertex
+
+    plt.close(fig)
+
+
+    return (x, y, z, c), (x_vertex, y_vertex, z_vertex)
 
 ###------- GET DATASET FUNCTION --------
 
-split = get_split()
-
-def get_data(original_plot, vertex, eid, file_identify, base_path, split = split):
+def get_data(XYZC, vertex, eid, file_identify, base_path, split):
+    x, y, z, c = XYZC
+    x_vertex, y_vertex, z_vertex = vertex
 
     #initialize paths
     path_img = os.path.join(base_path, "images", split)
@@ -150,12 +159,6 @@ def get_data(original_plot, vertex, eid, file_identify, base_path, split = split
     os.makedirs(path_img, exist_ok=True)
     os.makedirs(path_label, exist_ok=True)
 
-    #get projection data
-    x_vertex, y_vertex, z_vertex = vertex
-    x = original_plot._offsets3d[0]
-    y = original_plot._offsets3d[1]
-    z = original_plot._offsets3d[2]
-    c = original_plot.get_array()
 
     projections = [("xy", x, y, x_vertex, y_vertex),
                    ("yz", y, z, y_vertex, z_vertex),
@@ -169,6 +172,9 @@ def get_data(original_plot, vertex, eid, file_identify, base_path, split = split
         fig, ax = plt.subplots(figsize=(5.12, 5.12), dpi=100)
         ax.scatter(X, Y, c=c, cmap="Spectral", s=5)
 
+        # plot the vertex as a black circle
+        #ax.scatter(vx, vy, c="black", s=50, marker="o", edgecolors="white", linewidths=0.5, zorder=5)
+
         ax.axis("off") #don't show axis
 
         # axis limits
@@ -178,6 +184,12 @@ def get_data(original_plot, vertex, eid, file_identify, base_path, split = split
         #normalize for yolo (0-1)
         cx = (vx - xlim[0]) / (xlim[1] - xlim[0]) # dist from left / total width
         cy = 1 - ((vy - ylim[0]) / (ylim[1] - ylim[0])) # subtract from 1 since y=0 is at top in yolo
+
+        # check if normalized coordinates are valid
+        if not (0 <= cx <= 1) or not (0 <= cy <= 1):
+            print(f"Skipping event {eid} due to out-of-bounds normalized coordinates: cx={cx}, cy={cy}")
+            return
+
 
         print(f"label: 0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
         #save label
@@ -240,8 +252,10 @@ for file in h5_files:
     #loop through events
     for i, eid in enumerate(event_ids):
         print(f"Processing event {eid}...")
-        sc, x_vertex, y_vertex, z_vertex = PlotEvent3D(111, file, "", eid, part_df, z_shift)
-        get_data(sc, (x_vertex, y_vertex, z_vertex), eid, file_identify, base_path, split=split)
+        split = get_split()
+        (XYZC, vertex) = PlotEvent3D(111, file, "", eid, part_df, z_shift)
+        get_data(XYZC, vertex, eid, file_identify, base_path, split=split)
+
         print(f"completed event {eid}")
 
         if completed_log:
