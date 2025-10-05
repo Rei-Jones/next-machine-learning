@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import os
-import h5py
+import json
 import random
 import argparse
 
@@ -36,7 +36,7 @@ parser.add_argument("--base_path",
 parser.add_argument("--diffusion", 
                     type = float, 
                     required = True,
-                    choices = [0.05, 0.25, 0.1, 5],
+                    choices = [0.05, 0.25, 0.1, 5, 0.0],
                     help = "% Diffusion in events")
 
 parser.add_argument("--type", 
@@ -188,7 +188,7 @@ def get_data(XYZC, vertex, eid, file_identify, base_path, split):
         # check if normalized coordinates are valid
         if not (0 <= cx <= 1) or not (0 <= cy <= 1):
             print(f"Skipping event {eid} due to out-of-bounds normalized coordinates: cx={cx}, cy={cy}")
-            return
+            return (None, None, None)
 
 
         print(f"label: 0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
@@ -200,9 +200,32 @@ def get_data(XYZC, vertex, eid, file_identify, base_path, split):
         fig.savefig(os.path.join(path_img, f"event_{eid}_{file_identify}_{dim}.png"), bbox_inches="tight", pad_inches=0)
 
         plt.close(fig)
+    return x_vertex, y_vertex, z_vertex
 
 
 #----- GET DATASET -----
+
+#make a txt file of folders
+os.makedirs(base_path, exist_ok=True)
+input_files_txt = os.path.join(base_path, "input_folders.txt")
+event_data = os.path.join(base_path, "event_data.json")
+
+
+# create the file if it doesn't exist
+if not os.path.exists(event_data):
+    with open(event_data, "w", encoding="utf-8") as f:
+        pass 
+
+if not os.path.exists(input_files_txt):
+    with open(input_files_txt, "w", encoding="utf-8") as f:
+        pass 
+
+with open(input_files_txt, "r") as f:
+    text = f.read()
+
+if input_path not in text:
+    with open(input_files_txt, "a", encoding="utf-8") as f:
+        f.write(input_path + "\n")
 
 #keep track of completed events and files
 completed_events_folder = os.path.join(base_path, "completed_events")
@@ -254,7 +277,23 @@ for file in h5_files:
         print(f"Processing event {eid}...")
         split = get_split()
         (XYZC, vertex) = PlotEvent3D(111, file, "", eid, part_df, z_shift)
-        get_data(XYZC, vertex, eid, file_identify, base_path, split=split)
+        x, y, z = get_data(XYZC, vertex, eid, file_identify, base_path, split=split)
+        if x is None:
+            continue
+        h5_path = os.path.join(input_path, file)
+        true_data_event = {
+                            "event_id": int(eid),  # convert to native int
+                            "path": h5_path,
+                            "type": event_type,
+                            "pressure": int(pressure),
+                            "diffusion": str(diffusion) + "percent",
+                            "x": float(x),
+                            "y": float(y),
+                            "z": float(z)
+                        }
+        with open(event_data, "a", encoding="utf-8") as f:
+            json.dump(true_data_event, f)
+            f.write("\n")
 
         print(f"completed event {eid}")
 
