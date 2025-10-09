@@ -19,10 +19,20 @@ import pandas as pd
 
 #config
 
-json_file = sys.argv[2]
-sim_data_base = sys.argv[1]
+json_file = "/home/rei/NEXT/vertex_ML/vertex_txt/train_run_3_predictions.txt"
+sim_data_base = "/home/rei/NEXT/vertex_ML/diffused_data"
 
 grouped_events = {}
+
+#-----GET VERTEX------
+def get_vertex(file_, eid):
+    part = pd.read_hdf(file_, 'MC/particles')
+
+    x_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_x.iloc[0]
+    y_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_y.iloc[0]
+    z_vertex = part[(part.event_id == eid) & (part.particle_id == 1)].initial_z.iloc[0]
+
+    return x_vertex, y_vertex, z_vertex
 
 #get the percent diffusion from file name
 
@@ -58,6 +68,8 @@ for event_type in os.listdir(sim_data_base):
                             #Loop through each event in this file
                             for event_id, group in hits_df.groupby("event_id"):
 
+                                x_true, y_true, z_true = get_vertex(file_path, event_id)
+
 
                                 grouped_events[idx] = {
                                     "event_id": event_id,
@@ -65,7 +77,9 @@ for event_type in os.listdir(sim_data_base):
                                     "type": event_type,
                                     "pressure": pressure,
                                     "diffusion": percent,
+                                    "true vertex": np.array([x_true, y_true, z_true])
                                 }
+                                print(f"completed event {event_id}")
                                 idx += 1 
 
 #event_#_type_pressure_percent

@@ -21,12 +21,12 @@ import numpy as np
 
 #config
 
-label_dir = "runs/detect/predict/labels"
+label_dir = "/home/rei/NEXT/vertex_ML/vertex_txt/train_run_3"
 image_dims = (512, 512)
 
-vertex_predictions = {}
+vertex_predictions = defaultdict(lambda: defaultdict(list))
 
-
+#vertex_predictions["event"]["x"/"y"/"z"] = [value]
 
 for label_file in os.listdir(label_dir):
     if not label_file.endswith(".txt"): #exclude any non .txt files
@@ -38,10 +38,9 @@ for label_file in os.listdir(label_dir):
     dim_2 = label_file[-5]
     total_dim = dim_1 + dim_2
 
+    #get events with best confidence
     with open(os.path.join(label_dir, label_file)) as f:
         lines = f.readlines()
-
-    #get predictions with highest confidence
 
     best_line = None
     best_conf = -1
@@ -50,18 +49,27 @@ for label_file in os.listdir(label_dir):
         parts = line.strip().split()
         if parts[0] != "0":
             continue
+        #handle both files with confidence and without
         if len(parts) == 6:
-            conf = float(parts[-1])
-            if conf > best_conf:
-                best_conf = conf
-                best_line = parts
-    if best_line:
-        #convert to detector coordinates
-        _, dim_1_rel, dim_2_rel, _, _, conf = map(float, best_line)
-        dim_1_px = dim_1_rel * image_dims[0]
-        dim_2_px = dim_2_rel * image_dims[1]
-        vertex_predictions[base_event][dim_1].append(dim_1_px)
-        vertex_predictions[base_event][dim_2].append(dim_2_px)
+            confidence = float(parts[-1])
+        else:
+            confidence = 1.0
+
+        if confidence > best_conf:
+            best_conf = confidence
+            best_line = parts
+
+        if best_line:
+            #format : class x_center y_center box_width box_height
+            x_rel, y_rel = float(best_line[1]), float(best_line[2])
+            x_px, y_px = x_rel*image_dims[0], y_rel*image_dims[1]
+
+            vertex_predictions[base_event][dim_1].append(x_px)
+            vertex_predictions[base_event][dim_2].append(y_px)
+
+            print("completed event")
+
+
 
 vertex_predictions_mean = {}
 
@@ -74,5 +82,12 @@ for event, coords in vertex_predictions.items():
         }
 
 # Save to JSON
-with open("vertex_predictions_all.json", "w") as f:
+
+file_name = "train_run_3_predictions.txt"
+output_path = "/home/rei/NEXT/vertex_ML/vertex_txt"
+output_path = os.path.join(output_path, file_name)
+
+with open(output_path, "w") as f:
     json.dump(vertex_predictions_mean, f, indent=2)
+
+print(f"Saved {len(vertex_predictions)} predictions to {output_path}.")
