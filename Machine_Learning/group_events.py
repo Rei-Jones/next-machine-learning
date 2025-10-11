@@ -1,9 +1,9 @@
 #This takes the predicted vertex from a json file and matches that information with the actual event data
 
-#json input format: {"event_name": {"x": #, "y": #, "z": #}}
+#json input format: {"event_key": {"x": #, "y": #, "z": #}}
 
 #json output format: {"index": {"event_id": "", "path": "", "type": "", "pressure": "", "diffusion": "",
-#  "x": "", "y": "", "z": ""}}
+#  "true_vertex": "", "predicted_vertex": ""}}
 
 #===================================================================================================================
 
@@ -19,7 +19,7 @@ import pandas as pd
 
 #config
 
-json_file = "/home/rei/NEXT/vertex_ML/vertex_txt/train_run_3_predictions.txt"
+json_file = "/home/rei/NEXT/vertex_ML/vertex_txt/train_run_3_predictions.json"
 sim_data_base = "/home/rei/NEXT/vertex_ML/diffused_data"
 
 grouped_events = {}
@@ -34,74 +34,79 @@ def get_vertex(file_, eid):
 
     return x_vertex, y_vertex, z_vertex
 
-#get the percent diffusion from file name
+#get the number from folder name
 
-def get_percent(folder):
+def get_number(folder):
     match = re.search(r'\d+(\.\d+)?', folder)
     return float(match.group()) if match else None
 
-#sort through the original simulation data and create a dictionary with all the info
-grouped_events = {}
-idx = 0 
+#load YOLO vertex predictions
 
+with open(json_file, "r") as f:
+    vertex_data = json.load(f)
+
+# loop through sim data
+
+grouped_events = []
 for event_type in os.listdir(sim_data_base):
     type_path = os.path.join(sim_data_base, event_type)
 
     if os.path.isdir(type_path) and event_type in ["0nubb", "leptoquark"]:
-
+        print(f"processing {event_type}")
         for pressure in os.listdir(type_path):
             pressure_path = os.path.join(type_path, pressure)
 
             if os.path.isdir(pressure_path) and "bar" in pressure_path:
+                print(f"processing {pressure}")
+                pressure_int = get_number(pressure)
 
                 for smear in os.listdir(pressure_path):
                     smear_path = os.path.join(pressure_path, smear)
-                    percent = get_percent(smear)
+                    diffusion = get_number(smear)
+                    print(f"processing {smear}")
 
                     for file in os.listdir(smear_path):
 
                         if file.endswith(".h5"):
 
                             file_path = os.path.join(smear_path, file)
-                            hits_df = pd.read_hdf(file_path, "MC/hits")
+                            try:
+                                part_df = pd.read_hdf(file_path, "MC/particles")
+                            except (OSError, KeyError, ValueError) as e:
+                                print(f"Skipping invalid or unreadable file: {file_path}")
+                                print(f"   → Reason: {e}")
+                                continue
 
-                            #Loop through each event in this file
-                            for event_id, group in hits_df.groupby("event_id"):
+                            for event_id in part_df["event_id"].unique():
+                                xt, yt, zt = get_vertex(file_path, event_id)
+                                event_key = f"event_{event_id}_{event_type}_{pressure_int}_{diffusion}"
+                                grouped_events.append({"event_id": event_id,
+                                              "path": file_path,
+                                              "type": event_type,
+                                              "pressure": pressure_int,
+                                              "diffusion": diffusion,
+                                              "true_vertex": [xt, yt, zt],
+                                              "event_key": event_key})
 
-                                x_true, y_true, z_true = get_vertex(file_path, event_id)
+#match the event keys to get the redicted vertex, append to dict
+for event in grouped_events:
+    key = event["event_key"]
+    if key in vertex_data:
+        pred = vertex_data[key]
+        event["predicted_vertex"] = [pred["x"], pred["y"], pred["z"]]
+        event.pop("event_key")
+        print(f"found matching key: {pred}")
 
+#save file
 
-                                grouped_events[idx] = {
-                                    "event_id": event_id,
-                                    "path": file_path,
-                                    "type": event_type,
-                                    "pressure": pressure,
-                                    "diffusion": percent,
-                                    "true vertex": np.array([x_true, y_true, z_true])
-                                }
-                                print(f"completed event {event_id}")
-                                idx += 1 
+output_path = "/home/rei/NEXT/vertex_ML/vertex_txt"
+file_name = "train_run_3_data.json"
+output_path = os.path.join(output_path, file_name)
 
-#event_#_type_pressure_percent
-
-#match the event hits with the event vertex
-
-with open (json_file, "r") as f:
-    vertex_data = json.load(f)
-
-    for index in grouped_events:
-        event_info = grouped_events[index]
-        key = f"event_{event_info['event_id']}_{event_info['type']}_{event_info['pressure']}_{event_info['diffusion']}"
-        
-        if key in vertex_data:
-            vertex = vertex_data[key]
-            grouped_events[index]["x"] = float(vertex["x"])
-            grouped_events[index]["y"] = float(vertex["y"])
-            grouped_events[index]["z"] = float(vertex["z"])
-
-with open ("events_with_vertex.json", "w") as f:
+with open (output_path, "w") as f:
     json.dump(grouped_events, f, indent=2)
 
+print(f"completed {len(grouped_events)} events, saved to {output_path}")
 
 
 
