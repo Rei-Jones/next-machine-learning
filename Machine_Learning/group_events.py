@@ -22,7 +22,6 @@ import pandas as pd
 json_file = "/home/rei/NEXT/vertex_ML/vertex_txt/train_run_3_predictions.json"
 sim_data_base = "/home/rei/NEXT/vertex_ML/diffused_data"
 
-grouped_events = {}
 
 #-----GET VERTEX------
 def get_vertex(file_, eid):
@@ -44,6 +43,7 @@ def get_number(folder):
 
 with open(json_file, "r") as f:
     vertex_data = json.load(f)
+
 
 # loop through sim data
 
@@ -72,6 +72,7 @@ for event_type in os.listdir(sim_data_base):
                             file_path = os.path.join(smear_path, file)
                             try:
                                 part_df = pd.read_hdf(file_path, "MC/particles")
+                                print(f"opened file: {file}")
                             except (OSError, KeyError, ValueError) as e:
                                 print(f"Skipping invalid or unreadable file: {file_path}")
                                 print(f"   → Reason: {e}")
@@ -80,22 +81,18 @@ for event_type in os.listdir(sim_data_base):
                             for event_id in part_df["event_id"].unique():
                                 xt, yt, zt = get_vertex(file_path, event_id)
                                 event_key = f"event_{event_id}_{event_type}_{pressure_int}_{diffusion}"
-                                grouped_events.append({"event_id": event_id,
-                                              "path": file_path,
-                                              "type": event_type,
-                                              "pressure": pressure_int,
-                                              "diffusion": diffusion,
-                                              "true_vertex": [xt, yt, zt],
-                                              "event_key": event_key})
-
-#match the event keys to get the redicted vertex, append to dict
-for event in grouped_events:
-    key = event["event_key"]
-    if key in vertex_data:
-        pred = vertex_data[key]
-        event["predicted_vertex"] = [pred["x"], pred["y"], pred["z"]]
-        event.pop("event_key")
-        print(f"found matching key: {pred}")
+                                if event_key in vertex_data:
+                                    pred = vertex_data[event_key]
+                                    predicted_vertex = [pred["x"], pred["y"], pred["z"]]
+                                    grouped_events.append({"event_id": event_id,
+                                                "path": file_path,
+                                                "type": event_type,
+                                                "pressure": pressure_int,
+                                                "diffusion": diffusion,
+                                                "true_vertex": [xt, yt, zt],
+                                                "predicted_vertex": predicted_vertex,
+                                                "event_key": event_key})
+                                    print(f"found matching event key: {event_key}")
 
 #save file
 
