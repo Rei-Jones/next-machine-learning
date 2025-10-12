@@ -55,7 +55,7 @@ def process_h5(file_path):
     if not event_type or not pressure or not smear:
         return events_list
     
-    pressure_int = get_number(pressure)
+    pressure_int = int(get_number(pressure))
     diffusion = get_number(smear)
 
     for _, row in part_df.iterrows():
