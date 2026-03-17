@@ -1,0 +1,32 @@
+# VERBOSITY
+ /run/verbose 0
+ /event/verbose 0
+ /tracking/verbose 0
+ /process/em/verbose 0
+
+ # GENERATION
+ /Generator/ElecPair/region ACTIVE
+ /Generator/ElecPair/dist_file events_45_135.txt
+ /Generator/ElecPair/randomindex false
+ /Generator/ElecPair/verbosity false
+
+
+ ## Nexus Physics List
+ /PhysicsList/Nexus/clustering           false
+ /PhysicsList/Nexus/drift                false
+ /PhysicsList/Nexus/electroluminescence  false
+
+ #GEOMETRY
+ /Geometry/ATPC/cube_size 6 m
+ /Geometry/ATPC/gas_pressure 1. bar
+ /Geometry/ATPC/chamber_thickn 5 cm
+ /Geometry/ATPC/max_step_size 1 mm
+
+ /Geometry/ATPC/detgeom cylinder
+ /Generator/ElecPair/region CuCylinderActive
+ 
+  # PERSISTENCY
+  #/nexus/persistency/eventType background
+/nexus/random_seed 1
+ /nexus/persistency/start_id 501
+ /nexus/persistency/output_file events_45_135
