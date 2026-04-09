@@ -1,7 +1,7 @@
 jobname=yolo_hyperparameter_tuning
 
 OSDF_LOCATION=osdf:///ospool/ap41/data/rei.jones
-HOME_LOCATION=/home/rei.jones/code/yolo26/
+HOME_LOCATION=/home/rei.jones/code/yolo26
 
 NewProcess=$(Process)
 
@@ -16,7 +16,7 @@ output = logs/$(jobname)/jobid$(NewProcess)/$(Cluster)_$(NewProcess).out
 
 # Transfer input files
 
-transfer_input_files = $(HOME_LOCATION)/scripts/yolo_hyperparameter_tune.py, $(OSDF_LOCATION)/data/events_45_135_full?recursive
+transfer_input_files = $(HOME_LOCATION)/scripts/yolo_tune_full.py, $(OSDF_LOCATION)/data/events_45_135_tune/images/imgtrain.tar.gz, $(OSDF_LOCATION)/data/events_45_135_tune/images/imgval.tar.gz, $(OSDF_LOCATION)/data/events_45_135_tune/labels/labeltrain.tar.gz, $(OSDF_LOCATION)/data/events_45_135_tune/labels/labelval.tar.gz, $(HOME_LOCATION)/config/data.yaml
 
 # Transfer output files
 
@@ -30,9 +30,9 @@ container_image = osdf:///ospool/ap41/data/rei.jones/containers/yolo_container.s
 # Tell HTCondor requirements (e.g., operating system) your job needs,
 # what amount of compute resources each job will need on the computer where it runs.
 request_gpus = 1
-gpus_minimum_capability = 8.0
+request_cpus = 3
 request_memory = 64GB
-request_disk = 50GB
+request_disk = 7GB
 
 # Tell HTCondor the number of instances to run:
-queue 10
+queue 1

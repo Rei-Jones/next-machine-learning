@@ -1,8 +1,15 @@
-import numpy as np
-from ultralytics import YOLO
-import sys
-from PIL import Image
 import os
+
+from PIL import Image
+
+import numpy as np
+
+from ultralytics import YOLO
+
+import sys
+
+id = int(sys.argv[1])
+model = YOLO("yolo26n.yaml")
 
 def convert_rgba_to_rgb(img_dir):
     for f in os.listdir(img_dir):
@@ -14,32 +21,26 @@ def convert_rgba_to_rgb(img_dir):
 convert_rgba_to_rgb("dataset/images/train")
 convert_rgba_to_rgb("dataset/images/val")
 
-id = int(sys.argv[1])
-model = YOLO("yolo26n.yaml")
-
-def get_range(start, interval, id):
-    range = ((start+(id*interval)), (start+(id*interval)+interval))
-    return range
-
 search_space = {
-    "lr0": get_range(1e-5, 0.009999, id),
-    "lrf": get_range(0.01, 0.099, id),
-    "weight_decay": get_range(0.0, 1e-4, id),
-    "warmup_epochs": get_range(0, 0.5, id),
-    "warmup_momentum": get_range(0, 0.095, id),
-    "box": get_range(0.02, 0.018, id),
-    "cls": get_range(0.2, 0.06, id),
-    "dfl": get_range(0.4, 0.06, id),
-    "translate": get_range(0.0, 0.09, id),
-    "scale": get_range(0.0, 0.09, id),
-    "shear": get_range(0.0, 0.5, id),
-    "perspective": get_range(0.0, 0.0001, id),
+    "lr0": (1e-5, 1e-2),
+    "lrf": (0.01, 1.0),
+    "momentum": (0.7, 0.98),
+    "weight_decay": (0.0, 0.001),
+    "warmup_epochs": (0.0, 5.0),
+    "warmup_momentum": (0.0, 0.95),
+    "box": (1.0, 20.0),
+    "cls": (0.1, 4.0),
+    "dfl": (0.4, 12.0),
+    "translate": (0.0, 0.9),
+    "scale": (0.0, 0.95),
+    "shear": (0.0, 10.0),
+    "perspective": 	(0.0, 0.001),
     "flipud": (0.0, 0.0),
     "fliplr": (0.0, 0.0),
     "mosaic": (0.0, 0.0),
     "copy_paste": (0.0, 0.0),
     "close_mosaic": (0.0, 0.0),
-    "degrees": get_range(0, 4.5, id),
+    "degrees": (0.0, 45.0),
     "bgr": (0.0, 0.0),
     "mixup": (0.0, 0.0),
     "hsv_v": (0.0, 0.0),
@@ -49,12 +50,12 @@ search_space = {
 
 print(search_space)
 
-# Tune hyperparameters 30 epochs
+# Tune hyperparameters on COCO8 for 30 epochs
 model.tune(
     data="data.yaml",
     epochs=30,
     imgsz=416,
-    iterations=15,
+    iterations=50,
     optimizer="AdamW",
     space=search_space,
     plots=True,
