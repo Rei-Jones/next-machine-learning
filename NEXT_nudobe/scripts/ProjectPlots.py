@@ -134,7 +134,6 @@ def PlotEvent3D(hits, part, eid, z_shift):
     return (x, y, z, c), (x_vertex, y_vertex, z_vertex)
 
 ###------- GET DATASET FUNCTION --------
-
 def get_data(XYZC, vertex, eid, file_identify, split):
     x, y, z, c = XYZC
     x_vertex, y_vertex, z_vertex = vertex
@@ -144,11 +143,12 @@ def get_data(XYZC, vertex, eid, file_identify, split):
                    ("xz", x, z, x_vertex, z_vertex)]
     
     w = h = 0.02 #bounding box size
+    axis_limits = {} 
 
     for dim, X, Y, vx, vy in projections:
         #initialize paths
-        img_filename = f"event_{eid}_{file_identify}_{dim}_image_{split}.png"
-        label_filename = f"event_{eid}_{file_identify}_{dim}_label_{split}.txt"
+        img_filename = f"event_{eid}_{file_identify}_{dim}_{split}.png"
+        label_filename = f"event_{eid}_{file_identify}_{dim}_{split}.txt"
 
         #plot the event
         fig, ax = plt.subplots(figsize=(5.12, 5.12), dpi=100)
@@ -177,6 +177,8 @@ def get_data(XYZC, vertex, eid, file_identify, split):
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
+        axis_limits[dim] = {"xlim": list(xlim), "ylim": list(ylim)}
+
         print(f"Event {eid}: xlim={xlim}, ylim={ylim}, vertex=({vx}, {vy})")
 
 
@@ -200,13 +202,14 @@ def get_data(XYZC, vertex, eid, file_identify, split):
         fig.savefig(img_filename, bbox_inches="tight", pad_inches=0)
 
         plt.close(fig)
-    return x_vertex, y_vertex, z_vertex
+
+    return x_vertex, y_vertex, z_vertex, axis_limits
 
 
 #----- GET DATASET -----
 
 #loop through events
-
+all_limits = []
 part_df = pd.read_hdf(input_file, "MC/particles")
 hits_df = pd.read_hdf(input_file, "MC/hits")
 for eid, data in part_df.groupby("event_id"):
@@ -214,11 +217,12 @@ for eid, data in part_df.groupby("event_id"):
     print(f"Processing event {eid}...")
     split = get_split()
     (XYZC, vertex) = PlotEvent3D(hits_df, part_df, eid, z_shift)
-    x, y, z = get_data(XYZC, vertex, eid, file_identify, split=split)
+    x, y, z, axis_limits = get_data(XYZC, vertex, eid, file_identify, split=split)
     if x is None:
         continue
-
+    all_limits.append({"event_id": eid, "axis_limits": json.dumps(axis_limits)})
     print(f"completed event {eid}")
 
 
-
+limits_df = pd.DataFrame(all_limits)
+limits_df.to_json(f"{file_identify}_limits.jsonl", orient="records", lines=True)
