@@ -61,13 +61,13 @@ python3 SmearEvents.py ${EVENT_TYPE} 1    5 10 1.0 ${JOBID} # 5.0 % CO2
 
 mv ${EVENT_TYPE}.h5 ${EVENT_TYPE}_nexus_${JOBID}.h5
 
-python3 get_angle_data.py ${EVENT_TYPE}_nexus_${JOBID}.h5 $PRESSURE "nodiff"
-python3 get_angle_data.py ${EVENT_TYPE}_0.1percent_smear_${JOBID}.h5 $PRESSURE "0.1percent"
-python3 get_angle_data.py ${EVENT_TYPE}_5.0percent_smear_${JOBID}.h5 $PRESSURE "5.0percent"
-
 python3 project_plots.py --input_file ${EVENT_TYPE}_nexus_${JOBID}.h5 --pressure "$PRESSURE" --diffusion "nodiff"  --type "${EVENT_TYPE}"
 python3 project_plots.py --input_file ${EVENT_TYPE}_0.1percent_smear_${JOBID}.h5 --pressure "$PRESSURE" --diffusion "0.1percent"  --type "${EVENT_TYPE}"
 python3 project_plots.py --input_file ${EVENT_TYPE}_5.0percent_smear_${JOBID}.h5 --pressure "$PRESSURE" --diffusion "5.0percent"  --type "${EVENT_TYPE}"
+
+python3 get_angle_data.py ${EVENT_TYPE}_nexus_${JOBID}.h5 $PRESSURE "nodiff" ${EVENT_TYPE}_${PRESSURE}_nodiff_limits.jsonl
+python3 get_angle_data.py ${EVENT_TYPE}_0.1percent_smear_${JOBID}.h5 $PRESSURE "0.1percent" ${EVENT_TYPE}_${PRESSURE}_0.1percent_limits.jsonl
+python3 get_angle_data.py ${EVENT_TYPE}_5.0percent_smear_${JOBID}.h5 $PRESSURE "5.0percent" ${EVENT_TYPE}_${PRESSURE}_5.0percent_limits.jsonl
 
 ls -ltrh
 
