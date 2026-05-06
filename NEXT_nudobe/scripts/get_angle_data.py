@@ -63,8 +63,8 @@ def get_true_e_vectors(eid, part_df, vertex, particle_ids=[1,2]):
     return vectors
 
 def get_node_centers_df(hits_df, eid, pressure, diffusion):
-    print(f"diffusion: {diffusion}")
-    print(f"pressure: {pressure}")
+    #print(f"diffusion: {diffusion}")
+    #print(f"pressure: {pressure}")
     data = hits_df[hits_df["event_id"] == int(eid)].copy()
     if np.isnan(data.z.mean()) or data.z.empty:
         print(f"Skipping event {eid} because hits are missing or invalid")
@@ -75,6 +75,7 @@ def get_node_centers_df(hits_df, eid, pressure, diffusion):
     # voxel_sf=1.1
     # energy_threshold=0
     # energy_threshold = 0.0004
+    """
     print("Diffussion smear is: ",        Diff_smear,            "mm/sqrt(cm)")
     print("Energy threshold is: ",        1000*energy_threshold, "keV")
     print("diffision scale factor is: ",  diff_scale_factor)
@@ -83,7 +84,7 @@ def get_node_centers_df(hits_df, eid, pressure, diffusion):
     print("Tortuosity distance scale is:", Tortuosity_dist)
     print("The voxel size is:",           voxel_size)
     print("The det_size is", det_size)
-    
+    """
     #print(f"diffusion: {diffusion}")
     if (diffusion == "next1t"):
         mean_sigma=6
@@ -186,7 +187,8 @@ def get_reco_e_vectors(hits_df, part_df, eid, N, diffusion, pressure, z_shift, v
 
     node_centers_df = get_node_centers_df(hits_df, eid, pressure, diffusion)
     df = node_centers_df.copy() 
-    df["z"] = df["z"] - z_shift
+    if diffusion != "nodiff":
+        df["z"] = df["z"] - z_shift
     
     if vertex is None:
         vertex = get_vertex(part_df, eid)
@@ -303,15 +305,18 @@ def add_smear(part_df, eid, smear):
     return vertex_smeared
 
 def convert_np_types(obj):
-    if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+    if isinstance(obj, (np.float32, np.float64)):
         return float(obj)
-    if isinstance(obj, np.int32) or isinstance(obj, np.int64):
+    if isinstance(obj, (np.int32, np.int64)):
         return int(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()  # Convert array to list
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 file = sys.argv[1]
 pressure = sys.argv[2]
 diffusion = sys.argv[3]
+axis_limits_file = sys.argv[4]
 
 pressure = int(pressure)
 
@@ -319,10 +324,12 @@ z_shift = get_zshift(pressure)
 
 part_df = pd.read_hdf(file, "MC/particles")
 hits_df = pd.read_hdf(file, "MC/hits")
+axis_limits_df = pd.read_json(axis_limits_file, lines=True)
 
 dict = {}
 
 for eid, data in part_df.groupby("event_id"):
+    print(f"starting: {eid}")
     event_dict = {}
     vertex = get_vertex(part_df, eid)
     cos12_true = get_true_angle(part_df, eid)
@@ -332,6 +339,11 @@ for eid, data in part_df.groupby("event_id"):
     rv2 = vectors_reco[1]["direction"]
     cos12_reco = np.dot(rv1, rv2)/(np.linalg.norm(rv1) * np.linalg.norm(rv2))
     event_dict["vertex"] = vertex
+    match = axis_limits_df[axis_limits_df["event_id"] == eid]
+    if not match.empty:
+        event_dict["axis_limits"] = json.loads(match.iloc[0]["axis_limits"])
+    else:
+        event_dict["axis_limits"] = None
     event_dict["vectors_true"] = vectors
     event_dict["cos12_true"] = cos12_true
     event_dict["vectors_reco"] = vectors_reco
@@ -346,6 +358,8 @@ for eid, data in part_df.groupby("event_id"):
         event_dict[f"vertex_{smear}mm"] = vertex_smeared
         event_dict[f"vectors_{smear}mm"] = vectors_smeared
         event_dict[f"cos12_{smear}mm"] = cos12_smeared
+    
+    print(event_dict)
     
     dict[eid] = event_dict
 
