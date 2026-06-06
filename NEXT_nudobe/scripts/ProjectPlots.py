@@ -81,7 +81,8 @@ def PlotEvent3D(hits, part, eid, z_shift):
 
 
     event_hits = hits[hits.event_id == eid].copy()
-    event_hits["z"] = event_hits["z"]-z_shift
+    if diffusion != "nodiff":
+        event_hits["z"] = event_hits["z"]-z_shift
     part = part[(part.event_id == eid) & (part.primary == 1)]
     x_vertex, y_vertex, z_vertex = get_vertex(part, eid)
     
