@@ -348,6 +348,8 @@ for eid, data in part_df.groupby("event_id"):
     event_dict["cos12_true"] = cos12_true
     event_dict["vectors_reco"] = vectors_reco
     event_dict["cos12_reco"] = cos12_reco
+    energies = part_df[(part_df.event_id == eid) & (part_df.primary == 1)].kin_energy.tolist()
+    event_dict["energies"] = energies
 
     for smear in range(1, 6):
         vertex_smeared = add_smear(part_df, eid, smear)
