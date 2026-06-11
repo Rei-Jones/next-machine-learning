@@ -6,7 +6,7 @@
 
  # GENERATION
  /Generator/ElecPair/region ACTIVE
- /Generator/ElecPair/dist_file events_45_135.txt
+ /Generator/ElecPair/dist_file events_full_range.txt
  /Generator/ElecPair/randomindex false
  /Generator/ElecPair/verbosity false
 
@@ -24,9 +24,12 @@
 
  /Geometry/ATPC/detgeom cylinder
  /Generator/ElecPair/region CuCylinderActive
- 
+
   # PERSISTENCY
   #/nexus/persistency/eventType background
-/nexus/random_seed 1
+ /nexus/random_seed 500
  /nexus/persistency/start_id 501
- /nexus/persistency/output_file events_45_135
+ /nexus/persistency/output_file events_full_range
+
+ /Actions/DefaultEventAction/min_energy 2.3 MeV
+ /Actions/DefaultEventAction/max_energy 2.6 MeV
