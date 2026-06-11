@@ -14,7 +14,7 @@ output = logs/$(EVENT_TYPE)/$(PRESSURE)bar/jobid$(NewProcess)/$(Cluster)_$(NewPr
 
 # Transfer input files
 
-transfer_input_files = $(HOME_LOCATION)/config/$(INIT),$(HOME_LOCATION)/config/$(CONFIG),$(HOME_LOCATION)/files/$(EVENT_TYPE).txt,$(HOME_LOCATION)/scripts/SmearEvents.py,$(HOME_LOCATION)/scripts/CompressEvents.py, $(HOME_LOCATION)/scripts/setup_cluster.sh, $(HOME_LOCATION)/scripts/project_plots.py
+transfer_input_files = $(HOME_LOCATION)/config/$(INIT),$(HOME_LOCATION)/config/$(CONFIG),$(HOME_LOCATION)/files/$(EVENT_TYPE).txt,$(HOME_LOCATION)/scripts/SmearEvents.py,$(HOME_LOCATION)/scripts/CompressEvents.py, $(HOME_LOCATION)/scripts/setup_cluster.sh, $(HOME_LOCATION)/scripts/ProjectPlotsNew.py
 
 # Transfer output files
 
