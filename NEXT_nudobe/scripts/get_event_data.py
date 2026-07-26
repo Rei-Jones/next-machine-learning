@@ -521,18 +521,15 @@ for index, evt_id in enumerate(event_ids):
         # Add split vertex energy to T1
         if ("nexus" not in infile):
             T1_reco = T1_reco + E_vertex/2.0
-
-        if smear != 0:
-            event_dict[f"vertex_{smear}mm"] = vertex
-        else:
-            event_dict["vertex_true"] = vertex
-
-        event_dict["T1_reco"] = T1_reco
         
         if smear != 0: 
             event_dict[f"costheta_{smear}mm"] = costheta_reco
+            event_dict[f"T1_{smear}mm"] = T1_reco
+            event_dict[f"vertex_{smear}mm"] = vertex
         else:
             event_dict["costheta_reco"] = costheta_reco
+            event_dict["T1_reco"] = T1_reco
+            event_dict["vertex_true"] = vertex
 
         match = axis_limits_df[axis_limits_df["event_id"] == evt_id]
         if not match.empty:
@@ -543,7 +540,7 @@ for index, evt_id in enumerate(event_ids):
     dict_out[evt_id] = event_dict
 
 file_out = infile[:-3]
-file_out = f"{file_out}_data.jsonl"
+file_out = f"{file_out}_data.json"
 
 with open(file_out, "w") as f:
     for event_id, event_data in dict_out.items():
