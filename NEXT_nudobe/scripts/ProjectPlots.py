@@ -1,4 +1,3 @@
-
 # This takes a folder of simulated 0nubb or leptoquark events and gets the XY, XZ, and YZ plots for each event, to be used for machine learning.
 
 # This script can be run by doing project_plots.py --pressure # --input_path /path/to/simulated/events --base_path /path/to/ML/data/ --diffusion # --type ""
@@ -6,11 +5,17 @@
 #===========================================================================================================================================================
 
 #-----IMPORTS-----
-import pandas as pd
 import numpy as np
+import pandas as pd
+from scipy.spatial import distance_matrix
+import copy
+import itertools
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from TrackReconstruction_functions import *
+import sys
+import pickle
 import os
+import re
 import json
 import random
 import argparse
@@ -41,11 +46,17 @@ parser.add_argument("--type",
 args = parser.parse_args()
 
 #----- CONFIG -----
-input_file = args.input_file
+infile = args.input_file
 pressure = args.pressure
 diffusion = args.diffusion
 event_type = args.type
 file_identify = f"{event_type}_{pressure}_{diffusion}"
+
+print("Pressure:", pressure, "bar")
+print("diffusion:",diffusion)
+cluster = 1
+tr_opt = 0
+plot = 0
 
 #-----GET VERTEX------
 def get_vertex(part_df, eid):
@@ -75,73 +86,12 @@ def get_split():
     else:
         return 'test'
 
-### ------ PLOTTING 3D EVENT HITS ------
-def PlotEvent3D(hits, part, eid, z_shift):
-    fig = plt.figure(figsize=(5.12, 5.12), dpi=100)
-
-
-    event_hits = hits[hits.event_id == eid].copy()
-    if diffusion != "nodiff":
-        event_hits["z"] = event_hits["z"]-z_shift
-    part = part[(part.event_id == eid) & (part.primary == 1)]
-    x_vertex, y_vertex, z_vertex = get_vertex(part, eid)
-    
-    # Create 3D axes
-    ax = fig.add_subplot(111, projection='3d')
-
-    fig.set_facecolor('white')
-    ax.set_facecolor('white')
-
-    # Scatter plot in 3D
-    sc = ax.scatter(event_hits.x, event_hits.y, event_hits.z, 
-                    c=event_hits.energy, cmap='Spectral', s=10, label="Reco hits")
-    
-    ver = ax.scatter(x_vertex, y_vertex, z_vertex, s=50, color="black")
-
-    ax.set_xlabel("X [mm]", fontsize=15, color='black')
-    ax.set_ylabel("Y [mm]", fontsize=15, color='black')
-    ax.set_zlabel("Z [mm]", fontsize=15, color='black')
-
-    ax.xaxis.label.set_color('black')
-    ax.yaxis.label.set_color('black')
-    ax.zaxis.label.set_color('black')
-    ax.tick_params(axis='x', colors='black')
-    ax.tick_params(axis='y', colors='black')
-    ax.tick_params(axis='z', colors='black')
-
-    ax.grid(False)
-
-    # Add colorbar
-    cbar = fig.colorbar(sc, ax=ax, shrink=0.5, aspect=10, pad=0.09)
-    cbar.set_label("Energy", fontsize=12, color='black')
-    cbar.ax.yaxis.set_tick_params(color='black')
-    plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='black')
-
-    # Remove background panes
-    ax.xaxis.pane.fill = False
-    ax.yaxis.pane.fill = False
-    ax.zaxis.pane.fill = False
-
-    # extract raw data arrays
-    x = event_hits.x.values
-    y = event_hits.y.values
-    z = event_hits.z.values
-    c = event_hits.energy.values
-
-
-    plt.close(fig)
-
-
-    return (x, y, z, c), (x_vertex, y_vertex, z_vertex)
-
-###------- GET DATASET FUNCTION --------
-def get_data(XYZC, vertex, eid, file_identify, split):
-    x, y, z, c = XYZC
+def get_data(temp_df, hits_event, Tracks, vertex, eid, file_identify, colors, split):
     x_vertex, y_vertex, z_vertex = vertex
 
-    projections = [("xy", x, y, x_vertex, y_vertex),
-                   ("yz", y, z, y_vertex, z_vertex),
-                   ("xz", x, z, x_vertex, z_vertex)]
+    projections = [("xy", "x", "y", x_vertex, y_vertex),
+               ("yz", "y", "z", y_vertex, z_vertex),
+               ("xz", "x", "z", x_vertex, z_vertex)]
     
     w = h = 0.02 #bounding box size
     axis_limits = {} 
@@ -153,11 +103,11 @@ def get_data(XYZC, vertex, eid, file_identify, split):
 
         #plot the event
         fig, ax = plt.subplots(figsize=(5.12, 5.12), dpi=100)
-        ax.scatter(X, Y, c=c, cmap="Spectral", s=5)
-        #ax.scatter(vx, vy, color="black", s=10)
 
-        # plot the vertex as a black circle
-        #ax.scatter(vx, vy, c="black", s=50, marker="o", edgecolors="white", linewidths=0.5, zorder=5)
+        plot_tracks(ax, temp_df[X], temp_df[Y], Tracks)
+        ax.scatter(hits_event[X], hits_event[Y], c=colors, marker='o', alpha=0.15, s=3)
+        
+        #ax.scatter(vx, vy, color="black", s=10)
 
         ax.axis("off") #don't show axis
 
@@ -191,7 +141,7 @@ def get_data(XYZC, vertex, eid, file_identify, split):
         # check if normalized coordinates are valid
         if not (0 <= cx <= 1) or not (0 <= cy <= 1):
             print(f"Skipping event {eid} due to out-of-bounds normalized coordinates: cx={cx}, cy={cy}")
-            return (None, None, None)
+            return (None, None, None, None)
 
 
         print(f"label: 0 {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
@@ -207,23 +157,102 @@ def get_data(XYZC, vertex, eid, file_identify, split):
     return x_vertex, y_vertex, z_vertex, axis_limits
 
 
-#----- GET DATASET -----
+Track_dict = {}
+df_list = []
+df_meta = []
+hits = pd.read_hdf(infile, "MC/hits")
+print("Total events to process:", len(hits.event_id.unique()))
 
-#loop through events
-all_limits = []
-part_df = pd.read_hdf(input_file, "MC/particles")
-hits_df = pd.read_hdf(input_file, "MC/hits")
-for eid, data in part_df.groupby("event_id"):
-    plt.close('all')
-    print(f"Processing event {eid}...")
-    split = get_split()
-    (XYZC, vertex) = PlotEvent3D(hits_df, part_df, eid, z_shift)
-    x, y, z, axis_limits = get_data(XYZC, vertex, eid, file_identify, split=split)
-    if x is None:
+for index, event_num in enumerate(hits.event_id.unique()):
+    print("On index, Event:", index, event_num)
+
+    hit = hits[hits.event_id == event_num]
+
+    # These different function calls allow for different sorting if there is soeme kind of failure
+    df, Tracks, connected_nodes, connection_count, pass_flag, contained = RunTracking(hit, cluster, pressure, diffusion, 0)
+    if (not pass_flag):
+        print("Error in track reco, try resorting hits\n")
+        df, Tracks, connected_nodes, connection_count, pass_flag, contained = RunTracking(hit, cluster, pressure, diffusion, 1)
+    if (not pass_flag):
+        print("Error in track reco, try resorting hits\n")
+        df, Tracks, connected_nodes, connection_count, pass_flag, contained = RunTracking(hit, cluster, pressure, diffusion, 2)
+
+    if (not pass_flag):
+        print("Track still failed, skipping,...")
         continue
-    all_limits.append({"event_id": eid, "axis_limits": json.dumps(axis_limits)})
-    print(f"completed event {eid}")
+
+    Track_dict[event_num] = Tracks
+    df_list.append(df)
+    
+    # Slightly different input params for next1t analysis
+    if (diffusion == "next1t"):
+        temp_meta = GetTrackdf(df, Tracks, 30, 15, 15, pressure)
+    else:
+
+        # Allow scan of various parameters for the track reconstruction
+        if (tr_opt == 0):
+            temp_meta = GetTrackdf(df, Tracks, 400/pressure, 100/pressure, 200/pressure, pressure) # scale these params inversely with the pressure
+        elif (tr_opt == 1):
+            temp_meta = GetTrackdf(df, Tracks, 100/pressure, 100/pressure, 100/pressure, pressure)
+        elif (tr_opt == 2):
+            temp_meta = GetTrackdf(df, Tracks, 200/pressure, 200/pressure, 200/pressure, pressure)
+        elif (tr_opt == 3)
+            temp_meta = GetTrackdf(df, Tracks, 300/pressure, 300/pressure, 300/pressure, pressure)
+        elif (tr_opt == 4):
+            temp_meta = GetTrackdf(df, Tracks, 400/pressure, 400/pressure, 400/pressure, pressure)
+        elif (tr_opt == 5):
+            temp_meta = GetTrackdf(df, Tracks, 500/pressure, 500/pressure, 500/pressure, pressure)
+        elif (tr_opt == 6):
+            temp_meta = GetTrackdf(df, Tracks, 600/pressure, 600/pressure, 600/pressure, pressure)
+    
+    
+    # temp_meta = UpdateTrackMeta(temp_meta, df, 10/pressure) # Merge deltas and brems that are near the blobs in the metadata
+    temp_meta = UpdateTrackMeta2(temp_meta) # ensure variables are organized so that var 1 > var 2 e.g blob1>blob2
+    temp_meta["contained"] = contained
+    df_meta.append(temp_meta)
+
+    print("Printing Metadata\n", temp_meta[["event_id", "primary", "length", "energy", "blob1", "blob2", "blob1R", "blob2R", "Tortuosity1", "Tortuosity2", "Squiglicity1", "Squiglicity2", "label", "contained"]])
+    print(temp_meta[["event_id", "blob1RTD", "blob2RTD"]])
+    print("\n\n")
+
+
+df = pd.concat(df_list)
+df_meta = pd.concat(df_meta)
+
+# Print the reconstruction efficiency and any events that failed
+Reco_eff = 100*len(df_meta.event_id.unique())/ len(hits.event_id.unique())
+print("Track reconstruction efficiency:", Reco_eff)
+
+all_limits = []
+part_df = pd.read_hdf(infile, "MC/particles")
+print("Plotting Events")
+for index, evt in enumerate(df.event_id.unique()):
+
+    print("On index, Event:", index, evt)
+    split = get_split()
+    temp_df = df[df.event_id == evt]
+    # temp_df = temp_df.sort_values(by='id')
+    temp_df.index = temp_df.id
+
+    hits_event = hits[hits.event_id == evt].copy()
+    cmap = plt.get_cmap('viridis')
+    norm = plt.Normalize(hits_event.energy.min(), hits_event.energy.max())
+    colors = cmap(norm(hits_event.energy))
+    
+    vertex = get_vertex(part_df, evt)
+
+    temp_df["z"] = temp_df["z"] - z_shift
+    hits_event["z"] = hits_event["z"] - z_shift
+
+    Tracks = Track_dict[evt]
+
+    vx, vy, vz, axis_limits = get_data(temp_df, hits_event, Tracks, vertex, evt, file_identify, colors, split)
+    if vx is None:
+        continue
+    all_limits.append({"event_id": evt, "axis_limits": json.dumps(axis_limits)})
+    print(f"completed event {evt}")
 
 
 limits_df = pd.DataFrame(all_limits)
 limits_df.to_json(f"{file_identify}_limits.jsonl", orient="records", lines=True)
+
